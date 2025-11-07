@@ -1,0 +1,7 @@
+{
+  "name": "Clonador de Voz AI",
+  "description": "Faça upload de um áudio, grave sua voz e a IA irá transcrever o texto e analisar as características vocais (gênero, tom, ritmo) para narrar qualquer texto com um estilo de voz semelhante.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}

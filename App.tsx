@@ -138,12 +138,14 @@ function App() {
       const wavBlob = encodePCMToWav(pcmData, 24000, 1, 16);
       const url = URL.createObjectURL(wavBlob);
       setGeneratedAudioUrl(url);
+      
+      // Define o status de volta para 'analisado' ou 'idle' apenas em caso de sucesso.
+      const successStatus = voiceAnalysis ? 'analyzed' : 'idle';
+      setStatus(successStatus);
+
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Ocorreu um erro desconhecido.');
       setStatus('error');
-    } finally {
-      const currentStatus = voiceAnalysis ? 'analyzed' : 'idle';
-      setStatus(currentStatus);
     }
   };
   

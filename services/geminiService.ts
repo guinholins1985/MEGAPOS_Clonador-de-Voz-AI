@@ -1,6 +1,11 @@
 import { GoogleGenAI, Modality, Type } from "@google/genai";
 import type { VoiceAnalysis } from './types';
 
+// Adiciona uma verificação crucial para a chave de API, essencial para ambientes de produção como Vercel.
+if (!process.env.API_KEY) {
+  throw new Error("A variável de ambiente API_KEY não está configurada. Por favor, adicione-a nas configurações do seu projeto.");
+}
+
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
 
 /**
@@ -65,7 +70,6 @@ export async function transcribeAndAnalyzeVoice(audioFile: File): Promise<{ tran
     });
 
     let jsonString = response.text.trim();
-    // Use regex to robustly extract JSON from potential markdown code blocks
     const jsonMatch = jsonString.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
     if (jsonMatch && jsonMatch[1]) {
       jsonString = jsonMatch[1];
@@ -89,14 +93,14 @@ export async function transcribeAndAnalyzeVoice(audioFile: File): Promise<{ tran
     }
 
   } catch (error) {
-    console.error("Error analyzing voice:", error);
-    if (error instanceof Error && error.message.includes('JSON')) {
-        throw error; // Re-throw the specific JSON parse error
-    }
+    console.error("Erro detalhado ao analisar a voz:", error);
     if (error instanceof Error) {
-        throw new Error(`Falha ao analisar a voz: ${error.message}`);
+        if (error.message.includes('API key')) {
+             throw new Error(`Autenticação com a API falhou. Verifique sua chave de API.`);
+        }
+        throw new Error(`Erro na API ao analisar a voz: ${error.message}`);
     }
-    throw new Error("Falha ao analisar a voz. Verifique o console para mais detalhes.");
+    throw new Error("Ocorreu uma falha inesperada ao analisar a voz. Por favor, tente novamente.");
   }
 }
 
@@ -134,7 +138,6 @@ export async function generateSpeech(
       throw new Error("É necessário fornecer uma análise de voz ou um ID de voz.");
     }
 
-
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash-preview-tts",
       contents: [{ parts: [{ text: prompt }] }],
@@ -152,15 +155,18 @@ export async function generateSpeech(
       response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
 
     if (!base64Audio) {
-      throw new Error("Nenhum dado de áudio recebido da API.");
+      throw new Error("A API não retornou dados de áudio. O texto pode ser muito curto ou inválido.");
     }
 
     return base64Audio;
   } catch (error) {
-    console.error("Error generating speech:", error);
+    console.error("Erro detalhado ao gerar a narração:", error);
     if (error instanceof Error) {
-        throw new Error(`Falha ao gerar a narração: ${error.message}`);
+        if (error.message.includes('API key')) {
+             throw new Error(`Falha na autenticação com a API. Verifique se sua chave de API é válida.`);
+        }
+        throw new Error(`Erro na API ao gerar a narração: ${error.message}`);
     }
-    throw new Error("Falha ao gerar a narração. Por favor, tente novamente.");
+    throw new Error("Ocorreu uma falha inesperada ao gerar a narração. Por favor, tente novamente.");
   }
 }

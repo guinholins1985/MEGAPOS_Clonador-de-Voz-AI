@@ -63,6 +63,24 @@
           background-color: rgba(248, 250, 252, 0.2);
         }
       }
+
+      /* Custom scrollbar for voice list */
+      .voice-list::-webkit-scrollbar {
+        width: 8px;
+      }
+      .voice-list::-webkit-scrollbar-track {
+        background: #374151; /* gray-700 */
+        border-radius: 4px;
+      }
+      .voice-list::-webkit-scrollbar-thumb {
+        background-color: #6b7280; /* gray-500 */
+        border-radius: 4px;
+      }
+      /* For Firefox */
+      .voice-list {
+        scrollbar-width: thin;
+        scrollbar-color: #6b7280 #374151;
+      }
     </style>
   <script type="importmap">
 {

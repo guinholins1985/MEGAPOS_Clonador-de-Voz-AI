@@ -89,24 +89,37 @@ export async function transcribeAndAnalyzeVoice(audioFile: File): Promise<{ tran
 /**
  * Generates speech from text using the Gemini API with specific voice characteristics.
  * @param text The text to convert to speech.
- * @param analysis The voice characteristics to apply.
+ * @param options An object containing either the voice analysis or a specific voice ID.
  * @param speed The desired speed of the speech (e.g., 1.0 for normal).
  * @returns A base64 encoded string of the audio data.
  */
 export async function generateSpeech(
   text: string,
-  analysis: VoiceAnalysis,
+  options: {
+    analysis?: VoiceAnalysis | null;
+    voiceId?: string | null;
+  },
   speed: number
 ): Promise<string> {
   try {
-    const voiceName = analysis.gender === 'Female' ? 'Kore' : 'Zephyr';
+    let prompt: string;
+    let voiceName: string;
 
     let speedDescription = 'normal-paced';
     if (speed < 0.9) speedDescription = 'slow';
     if (speed > 1.2) speedDescription = 'fast';
 
+    if (options.voiceId) {
+      voiceName = options.voiceId;
+      prompt = `Narrate the following text at a ${speedDescription} pace: "${text}"`;
+    } else if (options.analysis) {
+      const analysis = options.analysis;
+      voiceName = analysis.gender === 'Female' ? 'Kore' : 'Zephyr'; // Default clone voices
+      prompt = `Act as a voiceover artist. Embody a character with a ${analysis.gender.toLowerCase()} voice. The voice has a ${analysis.pitch} pitch and should convey a ${analysis.emotion} emotion. The overall style is "${analysis.vocal_style}". Please narrate the following text at a ${speedDescription} pace: "${text}"`;
+    } else {
+      throw new Error("Either voice analysis or a voice ID must be provided.");
+    }
 
-    const prompt = `Act as a voiceover artist. Embody a character with a ${analysis.gender.toLowerCase()} voice. The voice has a ${analysis.pitch} pitch and should convey a ${analysis.emotion} emotion. The overall style is "${analysis.vocal_style}". Please narrate the following text at a ${speedDescription} pace: "${text}"`;
 
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash-preview-tts",

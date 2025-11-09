@@ -1,7 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { transcribeAndAnalyzeVoice, generateSpeech } from './services/geminiService';
-import type { VoiceAnalysis } from './types';
+import type { VoiceAnalysis, PrebuiltVoice } from './types';
 import { decode, encodePCMToWav } from './utils/audioUtils';
+import { PREBUILT_VOICES } from './constants';
 import {
   SparklesIcon,
   LoaderIcon,
@@ -12,9 +13,11 @@ import {
   StopCircleIcon,
   CheckCircleIcon,
   DownloadIcon,
+  SearchIcon,
 } from './components/IconComponents';
 
 type Status = 'idle' | 'analyzing' | 'analyzed' | 'generating' | 'error';
+type GenerationMode = 'clone' | 'select';
 
 function App() {
   const [status, setStatus] = useState<Status>('idle');
@@ -31,9 +34,12 @@ function App() {
   const [generatedAudioUrl, setGeneratedAudioUrl] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const [speed, setSpeed] = useState(1.0);
+  const [mode, setMode] = useState<GenerationMode>('select');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedVoiceId, setSelectedVoiceId] = useState<string | null>(null);
 
   useEffect(() => {
     return () => {
@@ -57,6 +63,7 @@ function App() {
     setVoiceAnalysis(null);
     setTranscribedText('');
     setGeneratedAudioUrl(null);
+    setMode('clone'); // Reset to clone mode on new analysis
 
     try {
       const result = await transcribeAndAnalyzeVoice(file);
@@ -100,9 +107,13 @@ function App() {
   };
 
   const handleGenerateAudio = async () => {
-    if (!transcribedText.trim() || !voiceAnalysis) {
-      setError('Não há texto ou análise de voz para gerar áudio.');
+    if (!transcribedText.trim()) {
+      setError('Não há texto para gerar áudio.');
       return;
+    }
+    if(mode === 'select' && !selectedVoiceId) {
+        setError('Por favor, selecione uma voz da lista.');
+        return;
     }
     
     if (audioRef.current) {
@@ -114,7 +125,11 @@ function App() {
     setGeneratedAudioUrl(null);
 
     try {
-      const base64Audio = await generateSpeech(transcribedText, voiceAnalysis, speed);
+        const options = {
+            analysis: mode === 'clone' ? voiceAnalysis : null,
+            voiceId: mode === 'select' ? selectedVoiceId : null,
+        }
+      const base64Audio = await generateSpeech(transcribedText, options, speed);
       const pcmData = decode(base64Audio);
       const wavBlob = encodePCMToWav(pcmData, 24000, 1, 16);
       const url = URL.createObjectURL(wavBlob);
@@ -123,51 +138,35 @@ function App() {
       setError(err instanceof Error ? err.message : 'Ocorreu um erro desconhecido.');
       setStatus('error');
     } finally {
-      setStatus('analyzed'); 
+      const currentStatus = voiceAnalysis ? 'analyzed' : 'idle';
+      setStatus(currentStatus);
     }
   };
-
-  const renderAnalysisResult = () => {
-    if(!voiceAnalysis) return null;
-    return (
-        <div className="bg-gray-700/50 p-4 rounded-lg grid grid-cols-2 sm:grid-cols-4 gap-4 text-center">
-            <div>
-                <p className="text-sm text-gray-400">Gênero</p>
-                <p className="font-semibold text-teal-400">{voiceAnalysis.gender}</p>
-            </div>
-             <div>
-                <p className="text-sm text-gray-400">Tom (Pitch)</p>
-                <p className="font-semibold text-teal-400 capitalize">{voiceAnalysis.pitch}</p>
-            </div>
-            <div>
-                <p className="text-sm text-gray-400">Emoção</p>
-                <p className="font-semibold text-teal-400 capitalize">{voiceAnalysis.emotion}</p>
-            </div>
-            <div className="col-span-2 sm:col-span-1">
-                <p className="text-sm text-gray-400">Estilo Vocal</p>
-                <p className="font-semibold text-teal-400 capitalize">{voiceAnalysis.vocal_style}</p>
-            </div>
-        </div>
-    );
-  };
   
+  const filteredVoices = PREBUILT_VOICES.filter(voice => 
+    voice.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+    voice.description.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+  
+  const isGenerateButtonDisabled = status === 'generating' || !transcribedText.trim() || (mode === 'clone' && !voiceAnalysis) || (mode === 'select' && !selectedVoiceId)
+
   return (
     <div className="bg-gray-900 min-h-screen text-white font-sans flex items-center justify-center p-4">
       <div className="w-full max-w-2xl bg-gray-800 rounded-lg shadow-xl p-8 space-y-6">
         <header className="text-center">
           <h1 className="text-4xl font-bold text-teal-400 flex items-center justify-center">
             <WaveformIcon className="w-8 h-8 mr-3" />
-            Clonador de Voz AI
+            Estúdio de Voz AI
           </h1>
           <p className="text-gray-400 mt-2">
-            Forneça um áudio para clonar o estilo da voz e narrar seu texto.
+            Clone um estilo de voz ou escolha uma da nossa biblioteca para narrar seu texto.
           </p>
         </header>
 
         <main className='space-y-6'>
           {/* ETAPA 1: ENTRADA DE ÁUDIO */}
           <div className="bg-gray-900/50 p-6 rounded-lg space-y-4">
-            <h2 className="text-lg font-semibold text-gray-300 border-b border-gray-700 pb-2">Etapa 1: Fornecer Amostra de Voz</h2>
+            <h2 className="text-lg font-semibold text-gray-300 border-b border-gray-700 pb-2">Etapa 1: Fornecer Amostra de Voz (Opcional)</h2>
              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                <button 
                   onClick={() => fileInputRef.current?.click()}
@@ -203,9 +202,9 @@ function App() {
           </div>
           
           {/* ETAPA 2: TEXTO E GERAÇÃO */}
-          <div className={`bg-gray-900/50 p-6 rounded-lg space-y-6 transition-opacity duration-500 ${status === 'idle' || status === 'analyzing' ? 'opacity-40 pointer-events-none' : 'opacity-100'}`}>
+          <div className="bg-gray-900/50 p-6 rounded-lg space-y-6">
             <h2 className="text-lg font-semibold text-gray-300 border-b border-gray-700 pb-2">Etapa 2: Ajustar e Gerar Narração</h2>
-            {renderAnalysisResult()}
+            
             <div>
               <label htmlFor="text-input" className="block text-sm font-medium text-gray-300 mb-2">
                 Texto para narrar
@@ -216,10 +215,42 @@ function App() {
                 className="w-full bg-gray-700 border border-gray-600 rounded-md p-3 text-white focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition"
                 value={transcribedText}
                 onChange={(e) => setTranscribedText(e.target.value)}
-                placeholder="O texto transcrito aparecerá aqui..."
-                disabled={status === 'idle' || status === 'analyzing'}
+                placeholder="Digite ou cole seu texto aqui..."
+                disabled={status === 'analyzing'}
               />
             </div>
+
+            <div className="flex bg-gray-700/50 p-1 rounded-lg">
+                <button onClick={() => setMode('clone')} disabled={!voiceAnalysis} className={`w-1/2 py-2 text-sm font-medium rounded-md transition ${mode === 'clone' ? 'bg-teal-600 text-white' : 'text-gray-300 hover:bg-gray-600/50'} disabled:opacity-50 disabled:cursor-not-allowed`}>Voz Clonada</button>
+                <button onClick={() => setMode('select')} className={`w-1/2 py-2 text-sm font-medium rounded-md transition ${mode === 'select' ? 'bg-teal-600 text-white' : 'text-gray-300 hover:bg-gray-600/50'}`}>Selecionar Voz</button>
+            </div>
+
+            {mode === 'clone' && voiceAnalysis && (
+                <div className="bg-gray-700/50 p-4 rounded-lg grid grid-cols-2 sm:grid-cols-4 gap-4 text-center">
+                    <div><p className="text-sm text-gray-400">Gênero</p><p className="font-semibold text-teal-400">{voiceAnalysis.gender}</p></div>
+                    <div><p className="text-sm text-gray-400">Tom (Pitch)</p><p className="font-semibold text-teal-400 capitalize">{voiceAnalysis.pitch}</p></div>
+                    <div><p className="text-sm text-gray-400">Emoção</p><p className="font-semibold text-teal-400 capitalize">{voiceAnalysis.emotion}</p></div>
+                    <div className="col-span-2 sm:col-span-1"><p className="text-sm text-gray-400">Estilo Vocal</p><p className="font-semibold text-teal-400 capitalize">{voiceAnalysis.vocal_style}</p></div>
+                </div>
+            )}
+
+            {mode === 'select' && (
+                <div className="space-y-4">
+                    <div className="relative">
+                        <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400"/>
+                        <input type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="Buscar voz por nome ou estilo..." className="w-full bg-gray-700 border border-gray-600 rounded-md pl-10 pr-4 py-2 text-white focus:ring-2 focus:ring-teal-500"/>
+                    </div>
+                    <div className="voice-list max-h-60 overflow-y-auto grid grid-cols-1 sm:grid-cols-2 gap-2 pr-2">
+                        {filteredVoices.map(voice => (
+                            <button key={voice.id + voice.name} onClick={() => setSelectedVoiceId(voice.id)} className={`w-full text-left p-3 rounded-lg transition ${selectedVoiceId === voice.id ? 'bg-teal-600 ring-2 ring-teal-400' : 'bg-gray-700 hover:bg-gray-600'}`}>
+                                <p className="font-semibold">{voice.name}</p>
+                                <p className="text-xs text-gray-400">{voice.description}</p>
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            )}
+
             <div>
                 <label htmlFor="speed-control" className="block text-sm font-medium text-gray-300 mb-2">
                     Ritmo da Narração: <span className="font-bold text-teal-400">{speed.toFixed(1)}x</span>
@@ -233,25 +264,20 @@ function App() {
                     value={speed}
                     onChange={(e) => setSpeed(parseFloat(e.target.value))}
                     className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-teal-500"
-                    disabled={status === 'idle' || status === 'analyzing'}
+                    disabled={status === 'analyzing'}
                 />
             </div>
-             <div className="text-center">
+
+             <div className="text-center pt-4">
                 <button
                   onClick={handleGenerateAudio}
-                  disabled={status !== 'analyzed' || !transcribedText.trim()}
+                  disabled={isGenerateButtonDisabled}
                   className="bg-teal-600 hover:bg-teal-700 disabled:bg-gray-500 disabled:cursor-not-allowed text-white font-bold py-3 px-8 rounded-full inline-flex items-center justify-center transition-transform transform hover:scale-105"
                 >
                   {status === 'generating' ? (
-                    <>
-                      <LoaderIcon className="w-5 h-5 mr-2 animate-spin" />
-                      Gerando...
-                    </>
+                    <> <LoaderIcon className="w-5 h-5 mr-2 animate-spin" /> Gerando... </>
                   ) : (
-                    <>
-                      <SparklesIcon className="w-5 h-5 mr-2" />
-                      Gerar Áudio com Voz Clonada
-                    </>
+                    <> <SparklesIcon className="w-5 h-5 mr-2" /> Gerar Narração </>
                   )}
                 </button>
               </div>
@@ -270,7 +296,7 @@ function App() {
               <audio ref={audioRef} src={generatedAudioUrl} controls autoPlay className="w-full" />
               <a
                 href={generatedAudioUrl}
-                download={`cloned_voice_${Date.now()}.wav`}
+                download={`ai_voice_${Date.now()}.wav`}
                 className="bg-gray-600 hover:bg-gray-500 text-white font-bold py-2 px-4 rounded-lg inline-flex items-center justify-center transition w-full sm:w-auto"
               >
                 <DownloadIcon className="w-5 h-5 mr-2" />

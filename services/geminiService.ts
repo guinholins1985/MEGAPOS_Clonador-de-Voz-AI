@@ -1,12 +1,27 @@
 import { GoogleGenAI, Modality, Type } from "@google/genai";
 import type { VoiceAnalysis } from './types';
 
-// Adiciona uma verificação crucial para a chave de API, essencial para ambientes de produção como Vercel.
-if (!process.env.API_KEY) {
-  throw new Error("A variável de ambiente API_KEY não está configurada. Por favor, adicione-a nas configurações do seu projeto.");
+let ai: GoogleGenAI | null = null;
+
+/**
+ * Lazily initializes and returns the GoogleGenAI instance.
+ * Throws an error if the API key is not configured.
+ */
+function getAiInstance(): GoogleGenAI {
+  const apiKey = process.env.API_KEY;
+  if (!apiKey) {
+    // Este erro será capturado pelo bloco try-catch da função chamadora
+    // e exibido de forma elegante na UI.
+    throw new Error("A variável de ambiente API_KEY não está configurada. Por favor, adicione-a nas configurações do seu projeto Vercel.");
+  }
+  
+  if (!ai) {
+    ai = new GoogleGenAI({ apiKey });
+  }
+  
+  return ai;
 }
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
 
 /**
  * Converts a File object to a base64 encoded string.
@@ -41,9 +56,10 @@ function fileToGenerativePart(file: File): Promise<{ inlineData: { data: string;
  */
 export async function transcribeAndAnalyzeVoice(audioFile: File): Promise<{ transcription: string, analysis: VoiceAnalysis }> {
   try {
+    const aiInstance = getAiInstance();
     const audioPart = await fileToGenerativePart(audioFile);
     
-    const response = await ai.models.generateContent({
+    const response = await aiInstance.models.generateContent({
       model: 'gemini-2.5-flash',
       contents: [
         { 
@@ -95,10 +111,7 @@ export async function transcribeAndAnalyzeVoice(audioFile: File): Promise<{ tran
   } catch (error) {
     console.error("Erro detalhado ao analisar a voz:", error);
     if (error instanceof Error) {
-        if (error.message.includes('API key')) {
-             throw new Error(`Autenticação com a API falhou. Verifique sua chave de API.`);
-        }
-        throw new Error(`Erro na API ao analisar a voz: ${error.message}`);
+        throw new Error(`Erro ao analisar a voz: ${error.message}`);
     }
     throw new Error("Ocorreu uma falha inesperada ao analisar a voz. Por favor, tente novamente.");
   }
@@ -120,6 +133,7 @@ export async function generateSpeech(
   speed: number
 ): Promise<string> {
   try {
+    const aiInstance = getAiInstance();
     let prompt: string;
     let voiceName: string;
 
@@ -138,7 +152,7 @@ export async function generateSpeech(
       throw new Error("É necessário fornecer uma análise de voz ou um ID de voz.");
     }
 
-    const response = await ai.models.generateContent({
+    const response = await aiInstance.models.generateContent({
       model: "gemini-2.5-flash-preview-tts",
       contents: [{ parts: [{ text: prompt }] }],
       config: {
@@ -162,10 +176,7 @@ export async function generateSpeech(
   } catch (error) {
     console.error("Erro detalhado ao gerar a narração:", error);
     if (error instanceof Error) {
-        if (error.message.includes('API key')) {
-             throw new Error(`Falha na autenticação com a API. Verifique se sua chave de API é válida.`);
-        }
-        throw new Error(`Erro na API ao gerar a narração: ${error.message}`);
+        throw new Error(`Erro ao gerar a narração: ${error.message}`);
     }
     throw new Error("Ocorreu uma falha inesperada ao gerar a narração. Por favor, tente novamente.");
   }

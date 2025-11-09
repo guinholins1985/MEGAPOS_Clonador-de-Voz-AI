@@ -19,7 +19,41 @@ import {
 type Status = 'idle' | 'analyzing' | 'analyzed' | 'generating' | 'error';
 type GenerationMode = 'clone' | 'select';
 
+function ApiKeyInstructions() {
+  return (
+    <div className="bg-gray-900 min-h-screen text-white font-sans flex items-center justify-center p-4">
+      <div className="w-full max-w-2xl bg-gray-800 rounded-lg shadow-xl p-8 space-y-6 text-center">
+        <AlertTriangleIcon className="w-16 h-16 mx-auto text-yellow-400" />
+        <h1 className="text-3xl font-bold text-yellow-300">Configuração Necessária</h1>
+        <p className="text-gray-300 text-lg">
+          A chave de API do Google AI não foi encontrada.
+        </p>
+        <div className="text-left bg-gray-900 p-6 rounded-lg space-y-4">
+            <p className="text-gray-400">Para utilizar o Estúdio de Voz AI, você precisa configurar sua chave de API no Vercel:</p>
+            <ol className="list-decimal list-inside space-y-2 text-gray-300">
+                <li>Acesse o painel do seu projeto no Vercel.</li>
+                <li>Vá para a aba <span className="font-mono bg-gray-700 px-2 py-1 rounded">Settings</span> &gt; <span className="font-mono bg-gray-700 px-2 py-1 rounded">Environment Variables</span>.</li>
+                <li>Crie uma nova variável de ambiente com o nome <code className="font-mono bg-gray-700 px-2 py-1 rounded text-teal-400">API_KEY</code>.</li>
+                <li>Cole sua chave da API do Google AI no campo de valor.</li>
+                <li>Salve e faça um novo "deploy" (ou "redeploy") do seu projeto para que a alteração tenha efeito.</li>
+            </ol>
+        </div>
+        <p className="text-gray-500 text-sm pt-4">
+            Após configurar a chave, a aplicação funcionará normalmente.
+        </p>
+      </div>
+    </div>
+  );
+}
+
 function App() {
+  const [isApiConfigured, setIsApiConfigured] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    // Esta verificação síncrona determina se a UI principal ou a tela de instruções deve ser exibida.
+    setIsApiConfigured(!!process.env.API_KEY);
+  }, []);
+
   const [status, setStatus] = useState<Status>('idle');
   const [error, setError] = useState<string | null>(null);
   
@@ -48,6 +82,18 @@ function App() {
       }
     };
   }, [generatedAudioUrl]);
+
+  if (isApiConfigured === null) {
+    return (
+      <div className="bg-gray-900 min-h-screen text-white flex items-center justify-center">
+        <LoaderIcon className="w-12 h-12 animate-spin text-teal-400" />
+      </div>
+    );
+  }
+
+  if (!isApiConfigured) {
+    return <ApiKeyInstructions />;
+  }
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -139,7 +185,6 @@ function App() {
       const url = URL.createObjectURL(wavBlob);
       setGeneratedAudioUrl(url);
       
-      // Define o status de volta para 'analisado' ou 'idle' apenas em caso de sucesso.
       const successStatus = voiceAnalysis ? 'analyzed' : 'idle';
       setStatus(successStatus);
 

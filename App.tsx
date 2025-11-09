@@ -39,7 +39,7 @@ function App() {
   const [speed, setSpeed] = useState(1.0);
   const [mode, setMode] = useState<GenerationMode>('select');
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedVoiceId, setSelectedVoiceId] = useState<string | null>(null);
+  const [selectedVoiceName, setSelectedVoiceName] = useState<string | null>(null);
 
   useEffect(() => {
     return () => {
@@ -111,7 +111,7 @@ function App() {
       setError('Não há texto para gerar áudio.');
       return;
     }
-    if(mode === 'select' && !selectedVoiceId) {
+    if(mode === 'select' && !selectedVoiceName) {
         setError('Por favor, selecione uma voz da lista.');
         return;
     }
@@ -125,9 +125,13 @@ function App() {
     setGeneratedAudioUrl(null);
 
     try {
+        const selectedVoice = mode === 'select' 
+            ? PREBUILT_VOICES.find(v => v.name === selectedVoiceName) 
+            : null;
+
         const options = {
             analysis: mode === 'clone' ? voiceAnalysis : null,
-            voiceId: mode === 'select' ? selectedVoiceId : null,
+            voiceId: mode === 'select' ? selectedVoice?.id : null,
         }
       const base64Audio = await generateSpeech(transcribedText, options, speed);
       const pcmData = decode(base64Audio);
@@ -148,7 +152,7 @@ function App() {
     voice.description.toLowerCase().includes(searchQuery.toLowerCase())
   );
   
-  const isGenerateButtonDisabled = status === 'generating' || !transcribedText.trim() || (mode === 'clone' && !voiceAnalysis) || (mode === 'select' && !selectedVoiceId)
+  const isGenerateButtonDisabled = status === 'generating' || !transcribedText.trim() || (mode === 'clone' && !voiceAnalysis) || (mode === 'select' && !selectedVoiceName)
 
   return (
     <div className="bg-gray-900 min-h-screen text-white font-sans flex items-center justify-center p-4">
@@ -242,7 +246,7 @@ function App() {
                     </div>
                     <div className="voice-list max-h-60 overflow-y-auto grid grid-cols-1 sm:grid-cols-2 gap-2 pr-2">
                         {filteredVoices.map(voice => (
-                            <button key={voice.name} onClick={() => setSelectedVoiceId(voice.id)} className={`w-full text-left p-3 rounded-lg transition ${selectedVoiceId === voice.id ? 'bg-teal-600 ring-2 ring-teal-400' : 'bg-gray-700 hover:bg-gray-600'}`}>
+                            <button key={voice.name} onClick={() => setSelectedVoiceName(voice.name)} className={`w-full text-left p-3 rounded-lg transition ${selectedVoiceName === voice.name ? 'bg-teal-600 ring-2 ring-teal-400' : 'bg-gray-700 hover:bg-gray-600'}`}>
                                 <p className="font-semibold">{voice.name}</p>
                                 <p className="text-xs text-gray-400">{voice.description}</p>
                             </button>

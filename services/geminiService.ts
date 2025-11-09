@@ -65,27 +65,34 @@ export async function transcribeAndAnalyzeVoice(audioFile: File): Promise<{ tran
     });
 
     let jsonString = response.text.trim();
-    // Handle cases where the API might wrap the JSON in markdown
-    if (jsonString.startsWith('```json')) {
-      jsonString = jsonString.slice(7, -3).trim();
-    } else if (jsonString.startsWith('```')) {
-      jsonString = jsonString.slice(3, -3).trim();
+    // Use regex to robustly extract JSON from potential markdown code blocks
+    const jsonMatch = jsonString.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+    if (jsonMatch && jsonMatch[1]) {
+      jsonString = jsonMatch[1];
     }
     
-    const result = JSON.parse(jsonString);
+    try {
+        const result = JSON.parse(jsonString);
 
-    return {
-        transcription: result.transcription,
-        analysis: {
-            gender: result.gender,
-            pitch: result.pitch,
-            emotion: result.emotion,
-            vocal_style: result.vocal_style,
-        }
-    };
+        return {
+            transcription: result.transcription,
+            analysis: {
+                gender: result.gender,
+                pitch: result.pitch,
+                emotion: result.emotion,
+                vocal_style: result.vocal_style,
+            }
+        };
+    } catch(parseError) {
+        console.error("Failed to parse JSON from API response:", jsonString, parseError);
+        throw new Error("A resposta da API de análise de voz não estava no formato JSON esperado.");
+    }
 
   } catch (error) {
     console.error("Error analyzing voice:", error);
+    if (error instanceof Error && error.message.includes('JSON')) {
+        throw error; // Re-throw the specific JSON parse error
+    }
     if (error instanceof Error) {
         throw new Error(`Falha ao analisar a voz: ${error.message}`);
     }

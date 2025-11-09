@@ -13,7 +13,7 @@ function fileToGenerativePart(file: File): Promise<{ inlineData: { data: string;
     const reader = new FileReader();
     reader.onloadend = () => {
       if (typeof reader.result !== 'string') {
-        return reject(new Error("Failed to read file as base64 string."));
+        return reject(new Error("Falha ao ler o arquivo como string base64."));
       }
       // Extracts base64 data from data URI
       const base64Data = reader.result.split(',')[1];
@@ -64,7 +64,14 @@ export async function transcribeAndAnalyzeVoice(audioFile: File): Promise<{ tran
       }
     });
 
-    const jsonString = response.text.trim();
+    let jsonString = response.text.trim();
+    // Handle cases where the API might wrap the JSON in markdown
+    if (jsonString.startsWith('```json')) {
+      jsonString = jsonString.slice(7, -3).trim();
+    } else if (jsonString.startsWith('```')) {
+      jsonString = jsonString.slice(3, -3).trim();
+    }
+    
     const result = JSON.parse(jsonString);
 
     return {
@@ -80,9 +87,9 @@ export async function transcribeAndAnalyzeVoice(audioFile: File): Promise<{ tran
   } catch (error) {
     console.error("Error analyzing voice:", error);
     if (error instanceof Error) {
-        throw new Error(`Failed to analyze voice: ${error.message}`);
+        throw new Error(`Falha ao analisar a voz: ${error.message}`);
     }
-    throw new Error("Failed to analyze voice. Please check the console for details.");
+    throw new Error("Falha ao analisar a voz. Verifique o console para mais detalhes.");
   }
 }
 
@@ -117,7 +124,7 @@ export async function generateSpeech(
       voiceName = analysis.gender === 'Female' ? 'Kore' : 'Zephyr'; // Default clone voices
       prompt = `Act as a voiceover artist. Embody a character with a ${analysis.gender.toLowerCase()} voice. The voice has a ${analysis.pitch} pitch and should convey a ${analysis.emotion} emotion. The overall style is "${analysis.vocal_style}". Please narrate the following text at a ${speedDescription} pace: "${text}"`;
     } else {
-      throw new Error("Either voice analysis or a voice ID must be provided.");
+      throw new Error("É necessário fornecer uma análise de voz ou um ID de voz.");
     }
 
 

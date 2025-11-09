@@ -242,7 +242,7 @@ function App() {
                     </div>
                     <div className="voice-list max-h-60 overflow-y-auto grid grid-cols-1 sm:grid-cols-2 gap-2 pr-2">
                         {filteredVoices.map(voice => (
-                            <button key={voice.id + voice.name} onClick={() => setSelectedVoiceId(voice.id)} className={`w-full text-left p-3 rounded-lg transition ${selectedVoiceId === voice.id ? 'bg-teal-600 ring-2 ring-teal-400' : 'bg-gray-700 hover:bg-gray-600'}`}>
+                            <button key={voice.name} onClick={() => setSelectedVoiceId(voice.id)} className={`w-full text-left p-3 rounded-lg transition ${selectedVoiceId === voice.id ? 'bg-teal-600 ring-2 ring-teal-400' : 'bg-gray-700 hover:bg-gray-600'}`}>
                                 <p className="font-semibold">{voice.name}</p>
                                 <p className="text-xs text-gray-400">{voice.description}</p>
                             </button>
